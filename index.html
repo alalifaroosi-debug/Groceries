@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grocery Notes</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --accent: #16a34a;
+      --accent-hover: #15803d;
+      --danger: #dc2626;
+      --border: #e5e7eb;
+    }
+
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 2rem 1rem;
+      display: flex;
+      justify-content: center;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 560px;
+      background: var(--card);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    }
+
+    h1 { margin: 0 0 0.25rem; font-size: 1.5rem; }
+    .subtitle { color: var(--muted); font-size: 0.9rem; margin: 0 0 1.25rem; }
+
+    .add-form {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    input {
+      padding: 0.6rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.95rem;
+    }
+
+    input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 0.6rem 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    .btn-add { background: var(--accent); color: #fff; }
+    .btn-add:hover { background: var(--accent-hover); }
+
+    ul { list-style: none; padding: 0; margin: 0; }
+
+    li {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.65rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    li:last-child { border-bottom: none; }
+
+    .item-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+
+    .item-name { font-weight: 600; }
+    .item-note { font-size: 0.85rem; color: var(--muted); }
+
+    .checked .item-name,
+    .checked .item-note {
+      text-decoration: line-through;
+      color: var(--muted);
+    }
+
+    .actions { display: flex; gap: 0.35rem; }
+
+    .btn-edit { background: #f3f4f6; color: var(--text); }
+    .btn-save { background: var(--accent); color: #fff; }
+    .btn-del  { background: #fee2e2; color: var(--danger); }
+
+    .edit-inputs {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.4rem;
+    }
+
+    .footer-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .btn-clear {
+      background: transparent;
+      color: var(--danger);
+      padding: 0.3rem 0.5rem;
+    }
+
+    @media (max-width: 480px) {
+      .add-form, .edit-inputs { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>Grocery Notes</h1>
+    <p class="subtitle">Add items, attach notes, and edit any entry anytime.</p>
+
+    <form class="add-form" id="addForm">
+      <input type="text" id="itemInput" placeholder="Item (e.g. Milk)" required />
+      <input type="text" id="noteInput" placeholder="Note / Qty (e.g. 2 liters)" />
+      <button type="submit" class="btn-add">Add</button>
+    </form>
+
+    <ul id="groceryList"></ul>
+
+    <div class="footer-bar">
+      <span id="counter">0 items</span>
+      <button type="button" class="btn-clear" id="clearChecked">Clear checked</button>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'grocery_notes_v1';
+    let items = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [
+      { id: 1, name: 'Eggs', note: '1 dozen, free-range', checked: false, editing: false },
+      { id: 2, name: 'Olive Oil', note: 'Extra virgin', checked: false, editing: false }
+    ];
+
+    const listEl = document.getElementById('groceryList');
+    const formEl = document.getElementById('addForm');
+    const itemInput = document.getElementById('itemInput');
+    const noteInput = document.getElementById('noteInput');
+    const counterEl = document.getElementById('counter');
+
+    function save() {
+      const clean = items.map(({ editing, ...rest }) => rest);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(clean));
+    }
+
+    function render() {
+      listEl.innerHTML = '';
+      items.forEach((item) => {
+        const li = document.createElement('li');
+        if (item.checked) li.classList.add('checked');
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = item.checked;
+        checkbox.addEventListener('change', () => {
+          item.checked = checkbox.checked;
+          save();
+          render();
+        });
+        li.appendChild(checkbox);
+
+        if (item.editing) {
+          const editWrap = document.createElement('div');
+          editWrap.className = 'edit-inputs';
+
+          const nameField = document.createElement('input');
+          nameField.type = 'text';
+          nameField.value = item.name;
+
+          const noteField = document.createElement('input');
+          noteField.type = 'text';
+          noteField.value = item.note;
+          noteField.placeholder = 'Note / Qty';
+
+          editWrap.append(nameField, noteField);
+          li.appendChild(editWrap);
+
+          const saveBtn = document.createElement('button');
+          saveBtn.textContent = 'Save';
+          saveBtn.className = 'btn-save';
+          saveBtn.addEventListener('click', () => {
+            const updatedName = nameField.value.trim();
+            if (!updatedName) return;
+            item.name = updatedName;
+            item.note = noteField.value.trim();
+            item.editing = false;
+            save();
+            render();
+          });
+
+          li.appendChild(saveBtn);
+        } else {
+          const content = document.createElement('div');
+          content.className = 'item-content';
+
+          const nameSpan = document.createElement('span');
+          nameSpan.className = 'item-name';
+          nameSpan.textContent = item.name;
+
+          content.appendChild(nameSpan);
+
+          if (item.note) {
+            const noteSpan = document.createElement('span');
+            noteSpan.className = 'item-note';
+            noteSpan.textContent = item.note;
+            content.appendChild(noteSpan);
+          }
+
+          li.appendChild(content);
+
+          const actions = document.createElement('div');
+          actions.className = 'actions';
+
+          const editBtn = document.createElement('button');
+          editBtn.textContent = 'Edit';
+          editBtn.className = 'btn-edit';
+          editBtn.addEventListener('click', () => {
+            item.editing = true;
+            render();
+          });
+
+          const delBtn = document.createElement('button');
+          delBtn.textContent = 'Delete';
+          delBtn.className = 'btn-del';
+          delBtn.addEventListener('click', () => {
+            items = items.filter((i) => i.id !== item.id);
+            save();
+            render();
+          });
+
+          actions.append(editBtn, delBtn);
+          li.appendChild(actions);
+        }
+
+        listEl.appendChild(li);
+      });
+
+      const remaining = items.filter((i) => !i.checked).length;
+      counterEl.textContent = `${remaining} remaining / ${items.length} total`;
+    }
+
+    formEl.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = itemInput.value.trim();
+      if (!name) return;
+      items.unshift({
+        id: Date.now(),
+        name,
+        note: noteInput.value.trim(),
+        checked: false,
+        editing: false
+      });
+      itemInput.value = '';
+      noteInput.value = '';
+      save();
+      render();
+    });
+
+    document.getElementById('clearChecked').addEventListener('click', () => {
+      items = items.filter((i) => !i.checked);
+      save();
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>
